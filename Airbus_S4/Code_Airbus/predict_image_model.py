@@ -3,6 +3,16 @@ from keras.models import load_model
 import keras.backend as K
 from keras.optimizers import Adam
 from keras.losses import binary_crossentropy
+from keras.preprocessing.image import ImageDataGenerator
+from skimage.io import imread,imshow
+import numpy as np
+from PIL import Image
+import os
+import matplotlib.pyplot as plt
+import sys
+sys.path.insert(0, '/media/rudresh/New Volume 1/Air_bus/Airbus_S4/Code_Airbus')
+
+import locateImg
 
 #### customized loss function to evaluate the loss of model#############
 
@@ -31,22 +41,49 @@ def dice_coef(y_true, y_pred, smooth=1):
 
 ##########load the trained model my_model.h5 with the weight and configuration loaded on top of it  #########
 
-from keras.models import load_model
 model = load_model('my_model.h5', custom_objects={'bce_logdice_loss': bce_logdice_loss,'dice_coef':dice_coef,'true_positive_rate':true_positive_rate})
 
-test_paths = os.listdir(ChopedImages)
 
-fig, m_axs = plt.subplots(20, 2, figsize = (10, 40))
-[c_ax.axis('off') for c_ax in m_axs.flatten()]
-for (ax1, ax2), c_img_name in zip(m_axs, test_paths):
-    c_path = os.path.join(test_image_dir, c_img_name)
-    c_img = imread(c_path)
-    first_img = np.expand_dims(c_img, 0)/255.0
-    first_seg = seg_model.predict(first_img)
-    ax1.imshow(first_img[0])
-    ax1.set_title('Image')
-    ax2.imshow(first_seg[0,:, :, 0])
-    ax2.set_title('Prediction')
-fig.savefig('test_predictions.png')
+inputPath = 'S2A_MSIL1C_20190608T092031_N0207_R093_T34SDF_20190608T105400.zip'
+safe_file_name= os.path.basename(inputPath)[:-4]+ ".SAFE"
+file_name = os.path.basename(inputPath)[:-4]+ "_PROCESSED"
+cropped_image = file_name+"/ChopedImages"
+test_paths = os.listdir(cropped_image)
+
+if not os.path.exists(file_name+"/resultImages"):
+    os.makedirs(file_name+"/resultImages")
+
+result_path = os.path.basename(inputPath)[:-4]+ "_PROCESSED"+"/resultImages"
+
+
+
+desired_batch_size=4
+test_datagen = ImageDataGenerator(rescale=1./255)
+test_generator = test_datagen.flow_from_directory(
+        cropped_image,
+        target_size=(768, 768),
+        color_mode="rgb",
+        shuffle = False,
+        class_mode='categorical',
+        batch_size=desired_batch_size)
+
+filenames = test_generator.filenames
+nb_samples = len(filenames)
+
+probabilities = model.predict_generator(test_generator, steps = 
+                                   np.ceil(nb_samples/desired_batch_size))
+test_generator.reset()
+
+for i in range(0,nb_samples):
+    generated_image=np.reshape(probabilities[i], (768, 768))
+    if(np.amax(generated_image)>0.998):
+        cordinate_x =int(filenames[i][27:-11])
+        cordinate_y =int(filenames[i][34:-4])
+        x,y =(np.where(generated_image==np.amax(generated_image)))
+        Actual_cordinate_x=cordinate_x+x[0]
+        Actual_cordinate_y=cordinate_y+y[0]
+        print(locateImg.getCoordinatesOfpixel(safe_file_name,Actual_cordinate_x,Actual_cordinate_y,10980,10980))
+        plt.imsave(result_path+'/'+filenames[i][13:-4]+'_location_'+str(Actual_cordinate_x)+','+str(Actual_cordinate_y)+'.jpg', generated_image)
+
 
 

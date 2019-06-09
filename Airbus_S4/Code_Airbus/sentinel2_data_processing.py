@@ -1,46 +1,40 @@
 
 ### code to convert the sentinel 2 JP2 images into the tiff format###########
-import sys
-import subprocess
-import zipfile  
+
 import os
 import time
-import readline, glob
-from pathlib import Path
-
-##########download the gdal merge file from the below link and import here ############
-## https://svn.osgeo.org/gdal/trunk/gdal/swig/python/scripts/gdal_merge.py######
-import gdal_merge
+import Jp2_tiff_Converter as cnv
 
 
 #######Set the Input and output path##################
 
 
-inputPath = 'S2A_MSIL1C_20190516T105031_N0207_R051_T31VEC_20190516T125423.zip'
+inputPath = 'S2A_MSIL1C_20190608T092031_N0207_R093_T34SDF_20190608T105400.zip'
 outputPath = ''
 
 start_time = time.time()
 
-generate_geotiffs(inputPath, outputPath)
+cnv.generate_geotiffs(inputPath, outputPath)
 
 print("--- %s seconds ---" % (time.time() - start_time))
+#############################################################
 
 #### convert the tiff image into jpg image###########
-
-from pgmagick import Image
-img = Image('SentinelTrueColor2.tiff') # Input Image
-img.write('SentinelTrueColor2.jpg')  # Output Image
+file_name = os.path.basename(inputPath)[:-4]+ "_PROCESSED"
 
 ##### Cut the images in the size of 786*786 and put into the folder###
 
 from PIL import Image
 
-infile = 'SentinelTrueColor2.jpg'
-chopsize = 768
+infile = 'merged.jpg'
+file_location = file_name+'/'+infile
+chopsize = 610
 
-img = Image.open(infile)
+img = Image.open(file_location)
 width, height = img.size
-os.makedirs("ChopedImages")
+
+if not os.path.exists(file_name+"/ChopedImages/ChopedImages"):
+    os.makedirs(file_name+"/ChopedImages/ChopedImages")
 
 # Save Chops of original image
 for x0 in range(0, width, chopsize):
@@ -49,5 +43,5 @@ for x0 in range(0, width, chopsize):
              x0+chopsize if x0+chopsize <  width else  width - 1,
              y0+chopsize if y0+chopsize < height else height - 1)
       print('%s %s' % (infile, box))
-      img.crop(box).save('ChopedImage/zchop.%s.x%03d.y%03d.jpg' % (infile.replace('.jpg',''), x0, y0))
+      img.crop(box).save(file_name+'/ChopedImages/ChopedImages/zchop.%s.x%05d.y%05d.jpg' % (infile.replace('.jpg',''), x0, y0))
 
