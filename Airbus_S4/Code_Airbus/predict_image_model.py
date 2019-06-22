@@ -10,9 +10,11 @@ from PIL import Image
 import os
 import matplotlib.pyplot as plt
 import sys
+import shutil
 sys.path.insert(0, '/media/rudresh/New Volume 1/Air_bus/Airbus_S4/Code_Airbus')
 
 import locateImg
+K.clear_session()
 
 #### customized loss function to evaluate the loss of model#############
 
@@ -40,50 +42,50 @@ def dice_coef(y_true, y_pred, smooth=1):
 
 
 ##########load the trained model my_model.h5 with the weight and configuration loaded on top of it  #########
-
 model = load_model('my_model.h5', custom_objects={'bce_logdice_loss': bce_logdice_loss,'dice_coef':dice_coef,'true_positive_rate':true_positive_rate})
 
 
-inputPath = 'S2A_MSIL1C_20190608T092031_N0207_R093_T34SDF_20190608T105400.zip'
-safe_file_name= os.path.basename(inputPath)[:-4]+ ".SAFE"
-file_name = os.path.basename(inputPath)[:-4]+ "_PROCESSED"
-cropped_image = file_name+"/ChopedImages"
-test_paths = os.listdir(cropped_image)
-
-if not os.path.exists(file_name+"/resultImages"):
-    os.makedirs(file_name+"/resultImages")
-
-result_path = os.path.basename(inputPath)[:-4]+ "_PROCESSED"+"/resultImages"
 
 
-
-desired_batch_size=4
-test_datagen = ImageDataGenerator(rescale=1./255)
-test_generator = test_datagen.flow_from_directory(
-        cropped_image,
-        target_size=(768, 768),
-        color_mode="rgb",
-        shuffle = False,
-        class_mode='categorical',
-        batch_size=desired_batch_size)
-
-filenames = test_generator.filenames
-nb_samples = len(filenames)
-
-probabilities = model.predict_generator(test_generator, steps = 
-                                   np.ceil(nb_samples/desired_batch_size))
-test_generator.reset()
-
-for i in range(0,nb_samples):
-    generated_image=np.reshape(probabilities[i], (768, 768))
-    if(np.amax(generated_image)>0.998):
-        cordinate_x =int(filenames[i][27:-11])
-        cordinate_y =int(filenames[i][34:-4])
-        x,y =(np.where(generated_image==np.amax(generated_image)))
-        Actual_cordinate_x=cordinate_x+x[0]
-        Actual_cordinate_y=cordinate_y+y[0]
-        print(locateImg.getCoordinatesOfpixel(safe_file_name,Actual_cordinate_x,Actual_cordinate_y,10980,10980))
-        plt.imsave(result_path+'/'+filenames[i][13:-4]+'_location_'+str(Actual_cordinate_x)+','+str(Actual_cordinate_y)+'.jpg', generated_image)
-
+def load_model(inputPath):
+    safe_file_name= os.path.basename(inputPath)[:-4]+ ".SAFE"
+    file_name = os.path.basename(inputPath)[:-4]+ "_PROCESSED"
+    cropped_image = file_name+"/ChopedImages"
+    test_paths = os.listdir(cropped_image)
+    
+    if not os.path.exists(file_name+"/resultImages"):
+        os.makedirs(file_name+"/resultImages")
+    
+    result_path = os.path.basename(inputPath)[:-4]+ "_PROCESSED"+"/resultImages"
+    
+    
+    desired_batch_size=4
+    test_datagen = ImageDataGenerator(rescale=1./255)
+    test_generator = test_datagen.flow_from_directory(
+            cropped_image,
+            target_size=(768, 768),
+            color_mode="rgb",
+            shuffle = False,
+            class_mode='categorical',
+            batch_size=desired_batch_size)
+    
+    filenames = test_generator.filenames
+    nb_samples = len(filenames)
+    test_generator.reset()
+    probabilities = model.predict_generator(test_generator, steps = 
+                                       np.ceil(nb_samples/desired_batch_size))
+    
+    for i in range(0,nb_samples):
+        generated_image=np.reshape(probabilities[i], (768, 768))
+        if(np.amax(generated_image)>0.4):
+            cordinate_x =int(filenames[i][42:-11])
+            cordinate_y =int(filenames[i][49:-4])
+            x,y =(np.where(generated_image==np.amax(generated_image)))
+            Actual_cordinate_x=cordinate_x+x[0]
+            Actual_cordinate_y=cordinate_y+y[0]
+            print(locateImg.getCoordinatesOfpixel(safe_file_name,Actual_cordinate_x,Actual_cordinate_y,10980,10980))
+            print(filenames[i])
+            shutil.copy(cropped_image+'/'+filenames[i], result_path+'/')
+            plt.imsave(result_path+'/'+filenames[i][13:-4]+'_location_'+str(Actual_cordinate_x)+','+str(Actual_cordinate_y)+'.jpg', generated_image)
 
 
